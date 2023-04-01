@@ -1,9 +1,9 @@
-import sbt._
+import sbt.*
 
 object Versions {
   val akkaVersion = "2.6.18"
   val scalaTestVersion = "3.2.9"
-  val logbackVersion = "1.2.10"
+  val logbackVersion = "1.4.6"
 }
 
 object Dependencies {
