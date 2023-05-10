@@ -24,24 +24,31 @@ object ChildActors {
     trait Command
     case class CreateChild(name: String) extends Command
     case class TellChild(msg: String)    extends Command
+    case object StopChild                extends Command
 
-    def apply(): Behavior[Command] = Behaviors.receive { (context, message) =>
+    def apply(): Behavior[Command] = idle()
+
+    def idle(): Behavior[Command] = Behaviors.receive { (context, message) =>
       message match {
         case CreateChild(name) =>
           context.log.info(s"[parent] Creating child wild name $name")
           val childRef: ActorRef[String] = context.spawn(Child(), name)
           active(childRef)
-        case TellChild(msg)    => ???
         case _                 => ???
       }
     }
 
-    private def active(childRef: ActorRef[String]): Behavior[Command] = Behaviors.receive { (context, message) =>
+    private def active(childRef: ActorRef[String]): Behavior[Command] = Behaviors.receive[Command] { (context, message) =>
       message match {
         case TellChild(msg) =>
-          context.log.info(s"[parent] Sending message $message to child")
+          context.log.info(s"[parent] Sending message '$msg' to child")
           childRef ! msg
           Behaviors.same
+
+        case StopChild =>
+          context.log.info(s"[parent] stopping child")
+          context.stop(childRef) // child ONLY !!!
+          idle()
 
         case _ =>
           context.log.info(s"[parent] command not supported")
@@ -58,13 +65,16 @@ object ChildActors {
   }
 
   def demoParentChild(): Unit = {
-    import Parent._
+    import Parent.{CreateChild, StopChild, TellChild}
     val userGuardianBehavior: Behavior[Unit] = Behaviors.setup { context =>
 //      context.spawn(???, "") <==>  ActorSystem(???, "name")
 //      val parent = ActorSystem(Parent(), "DemoParentChildSystem")
       val parent = context.spawn(Parent(), "parent")
       parent ! CreateChild("ChildActor_1")
       parent ! TellChild("hey kid, you there?")
+      parent ! StopChild
+      parent ! CreateChild("ChildActor_2")
+      parent ! TellChild("Yo, kid, Are you there?")
       Behaviors.empty
     }
 
@@ -82,6 +92,7 @@ object ChildActors {
     trait Command
     case class CreateChild(name: String)            extends Command
     case class TellChild(name: String, msg: String) extends Command
+    case class StopChild(name: String)              extends Command
 
     def apply(): Behavior[Command] = active(Map[String, ActorRef[String]]())
 
@@ -93,13 +104,14 @@ object ChildActors {
             .fold {
               val childRef = context.spawn(Child(), name)
               active(children + (name -> childRef))
-            } {
+            } { _ =>
               context.log.warn(s"[parent] name '$name' should be unique")
-              _ => Behaviors.same
+//              active(children)
+              Behaviors.same
             }
 
         case TellChild(name, msg) =>
-          context.log.info(s"[parent] Sending message $message to child $name")
+          context.log.info(s"[parent] Sending message $msg to child $name")
           children.get(name)
             .fold {
               context.log.warn(s"[parent] actor '$name' doesnt exist")
@@ -107,7 +119,16 @@ object ChildActors {
               child ! msg
             }
           Behaviors.same
-        case _                    =>
+
+        case StopChild(name) =>
+          context.log.info(s"[parent] attempting to stop child with name $name")
+          children.get(name)
+            .fold(context.log.warn(s"[parent] actor '$name' doesnt exist")) { childRef =>
+              context.stop(childRef)
+            }
+          active(children - name)
+
+        case _ =>
           context.log.info(s"[parent] command not supported")
           Behaviors.same
       }
@@ -128,6 +149,9 @@ object ChildActors {
       parent ! TellChild("ChildActor_1", "hey kid, you there?")
       parent ! TellChild("ChildActor_3", "hey kid, are you there?")
       parent ! TellChild("ChildActor_4", "hey kid, are you there?")
+      parent ! StopChild("ChildActor_3")
+      parent ! TellChild("ChildActor_3", "Are you still there?")
+
       Behaviors.empty
     }
 
