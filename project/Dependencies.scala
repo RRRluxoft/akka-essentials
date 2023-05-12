@@ -9,9 +9,9 @@ object Versions {
 object Dependencies {
 
   private val akka = Seq(
-    "com.typesafe.akka" %% "akka-actor-typed" % Versions.akkaVersion,
-    "com.typesafe.akka" %% "akka-actor-testkit-typed" % Versions.akkaVersion
-  )
+    "com.typesafe.akka" %% "akka-actor-typed",
+    "com.typesafe.akka" %% "akka-actor-testkit-typed"
+  ).map(_ % Versions.akkaVersion)
 
   private val test = Seq(
     "org.scalatest" %% "scalatest" % Versions.scalaTestVersion
@@ -19,7 +19,8 @@ object Dependencies {
 
   private val logback = Seq(
     "ch.qos.logback" % "logback-classic" % Versions.logbackVersion
-  )
+  ).map(_ % Runtime)
+
 
   val appDependencies = akka ++ test ++ logback
 
