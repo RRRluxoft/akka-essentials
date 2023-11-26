@@ -77,10 +77,15 @@ object ScalaRecap {
     case _ => "no medal"
   }
 
-  val optionDescription = anOption match {
+  lazy val optionDescription = anOption match {
     case Some(value) => s"the option is not empty: $value"
     case None => "the option is empty"
   }
+  lazy val optionDescription_V2 = anOption
+    .fold("the option is empty")(value => s"the option is not empty: $value")
+
+  lazy val optionDescription_V3 = anOption
+    .foldLeft("the option is empty")((_, value) => s"the option is not empty: $value")
 
   // Futures
   implicit val ec: ExecutionContext = ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(8))

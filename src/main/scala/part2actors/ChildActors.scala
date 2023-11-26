@@ -32,7 +32,8 @@ object ChildActors {
     def idle(): Behavior[Command] = Behaviors.receive { (context, message) =>
       message match {
         case CreateChild(name) =>
-          context.log.info(s"[parent] Creating child wild name $name")
+          context.log.info(s"[parent] Creating child with name $name")
+          // creating a child actor REFERENCE (used to send messages to this child)
           val childRef: ActorRef[String] = context.spawn(Child(), name)
           active(childRef)
         case _                 => ???
@@ -41,14 +42,14 @@ object ChildActors {
 
     private def active(childRef: ActorRef[String]): Behavior[Command] = Behaviors.receive[Command] { (context, message) =>
       message match {
-        case TellChild(msg) =>
-          context.log.info(s"[parent] Sending message '$msg' to child")
-          childRef ! msg
+        case TellChild(message) =>
+          context.log.info(s"[parent] Sending message $message to child")
+          childRef ! message // <- send a message to another actor
           Behaviors.same
 
         case StopChild =>
-          context.log.info(s"[parent] stopping child")
-          context.stop(childRef) // child ONLY !!!
+          context.log.info("[parent] stopping child")
+          context.stop(childRef) // only works with CHILD actors
           idle()
 
         case WatchChild =>
@@ -61,53 +62,53 @@ object ChildActors {
           Behaviors.same
       }
     }
-      .receiveSignal {
-        case (context, Terminated(childRefWhichDied)) =>
-          context.log.info(s"[parent] Child '${childRefWhichDied.path}' was killed by")
-          idle()
-      }
+    .receiveSignal {
+      case (context, Terminated(childRefWhichDied)) =>
+        context.log.info(s"[parent] Child ${childRefWhichDied.path} was killed by something...")
+        idle()
+    }
   }
 
   object Child {
     def apply(): Behavior[String] = Behaviors.receive { (context, message) =>
-      context.log.info(s"[${context.self.path.name}] Received: '$message'")
+      context.log.info(s"[${context.self.path.name}] Received $message")
       Behaviors.same
     }
   }
 
   def demoParentChild(): Unit = {
-    import Parent.{CreateChild, StopChild, TellChild, WatchChild}
+    import Parent._
     val userGuardianBehavior: Behavior[Unit] = Behaviors.setup { context =>
-//      context.spawn(???, "") <==>  ActorSystem(???, "name")
-//      val parent = ActorSystem(Parent(), "DemoParentChildSystem")
+      // set up all the important actors in your application
       val parent = context.spawn(Parent(), "parent")
-      parent ! CreateChild("ChildActor_1")
+      // set up the initial interaction between the actors
+      parent ! CreateChild("child")
       parent ! TellChild("hey kid, you there?")
       parent ! WatchChild
       parent ! StopChild
-      parent ! CreateChild("ChildActor_2")
-      parent ! TellChild("Yo, kid, Are you there?")
+      parent ! CreateChild("child2")
+      parent ! TellChild("yo new kid, how are you?")
+
+      // user guardian usually has no behavior of its own
       Behaviors.empty
     }
 
-    val system = ActorSystem(userGuardianBehavior, "DemoParentChildSystem")
-
+    val system = ActorSystem(userGuardianBehavior, "DemoParentChild")
     Thread.sleep(1000)
     system.terminate()
   }
 
   /**
-    * Exercise: write a Parent_V2 that can manage MULTIPLE child actors.
-    */
-
+   * Exercise: write a Parent_V2 that can manage MULTIPLE child actors.
+   */
   object Parent_V2 {
     trait Command
     case class CreateChild(name: String)            extends Command
     case class TellChild(name: String, msg: String) extends Command
     case class StopChild(name: String)              extends Command
-    case class WatchChild(name: String)              extends Command
+    case class WatchChild(name: String)             extends Command
 
-    def apply(): Behavior[Command] = active(Map[String, ActorRef[String]]())
+    def apply(): Behavior[Command] = active(Map())
 
     private def active(children: Map[String, ActorRef[String]]): Behavior[Command] = Behaviors.receive[Command] { (context, message) =>
       message match {
